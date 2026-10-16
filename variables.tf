@@ -35,9 +35,9 @@ variable "security_group_ids" {
 }
 
 variable "deletion_protection" {
-  description = "If true, the ALB cannot be deleted via the AWS API."
+  description = "If true, the ALB cannot be deleted via the AWS API. Defaults to true for production safety."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "idle_timeout" {
