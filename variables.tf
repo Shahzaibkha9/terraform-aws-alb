@@ -167,6 +167,12 @@ variable "listener_rules" {
   default = {}
 }
 
+variable "waf_acl_arn" {
+  description = "ARN of a WAFv2 web ACL to associate with the ALB. Recommended for internet-facing ALBs."
+  type        = string
+  default     = null
+}
+
 variable "tags" {
   description = "Tags to apply to all resources."
   type        = map(string)

@@ -43,3 +43,8 @@ output "listener_rule_arns" {
   description = "Map of logical listener rule key to ARN."
   value       = { for k, v in aws_lb_listener_rule.this : k => v.arn }
 }
+
+output "waf_acl_association_id" {
+  description = "ID of the WAFv2 web ACL association, or null when no WAF is attached."
+  value       = try(aws_wafv2_web_acl_association.this[0].id, null)
+}

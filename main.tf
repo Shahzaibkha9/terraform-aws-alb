@@ -97,6 +97,13 @@ resource "aws_lb_listener" "this" {
   tags = var.tags
 }
 
+resource "aws_wafv2_web_acl_association" "this" {
+  count = var.create && var.waf_acl_arn != null ? 1 : 0
+
+  resource_arn = aws_lb.this[0].arn
+  web_acl_arn  = var.waf_acl_arn
+}
+
 resource "aws_lb_listener_rule" "this" {
   for_each = var.create ? var.listener_rules : {}
 

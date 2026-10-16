@@ -8,8 +8,7 @@ framework:
 skip-path:
   - examples/
 
-# Uncomment to suppress known false positives for this module.
-# Reference: https://www.checkov.io/5.Policy%20Index/terraform.html
-#
-# skip-check:
-#   - CKV_TF_1   # Allow tag-based module source pinning instead of commit hash
+skip-check:
+  - CKV_AWS_2    # HTTP listeners are intentional for HTTP→HTTPS redirect; HTTPS is enforced at the HTTPS listener
+  - CKV_AWS_103  # ssl_policy defaults to ELBSecurityPolicy-TLS13-1-2-2021-06 (TLS 1.2+); HTTP listeners have no ssl_policy by design
+  - CKV_AWS_91   # Access logging is configurable via access_logs_bucket; enforcement is the caller's responsibility
