@@ -16,9 +16,9 @@ variable "name" {
 }
 
 variable "internal" {
-  description = "Set to true for an internal ALB, false for internet-facing."
+  description = "Set to true for an internal ALB, false for internet-facing. Required — must be set explicitly."
   type        = bool
-  default     = false
+  nullable    = false
 }
 
 variable "vpc_id" {
@@ -55,6 +55,23 @@ variable "enable_http2" {
   description = "Whether HTTP/2 is enabled."
   type        = bool
   default     = true
+}
+
+variable "enable_waf_fail_open" {
+  description = "Whether to allow the ALB to route requests to targets if WAF is unavailable. Defaults to false."
+  type        = bool
+  default     = false
+}
+
+variable "desync_mitigation_mode" {
+  description = "How the ALB handles requests that might pose a security risk due to HTTP desync. Valid values: monitor, defensive, strictest."
+  type        = string
+  default     = "defensive"
+
+  validation {
+    condition     = contains(["monitor", "defensive", "strictest"], var.desync_mitigation_mode)
+    error_message = "desync_mitigation_mode must be one of: monitor, defensive, strictest."
+  }
 }
 
 variable "access_logs_bucket" {

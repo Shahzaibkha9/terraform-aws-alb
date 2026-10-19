@@ -18,6 +18,8 @@ resource "aws_lb" "this" {
   idle_timeout               = var.idle_timeout
   enable_http2               = var.enable_http2
   drop_invalid_header_fields = true
+  enable_waf_fail_open       = var.enable_waf_fail_open
+  desync_mitigation_mode     = var.desync_mitigation_mode
 
   dynamic "access_logs" {
     for_each = var.access_logs_bucket != null ? [1] : []
@@ -111,6 +113,14 @@ resource "aws_lb_listener" "this" {
     precondition {
       condition     = upper(each.value.protocol) != "HTTPS" || each.value.certificate_arn != null
       error_message = "HTTPS listener '${each.key}' requires 'certificate_arn' to be set."
+    }
+    precondition {
+      condition     = upper(each.value.protocol) != "HTTP" || each.value.redirect != null
+      error_message = "HTTP listener '${each.key}' must use 'redirect' to enforce HTTPS. Plain HTTP forwarding is not permitted."
+    }
+    precondition {
+      condition     = upper(each.value.protocol) != "HTTPS" || !can(regex("TLS-1-[01]", each.value.ssl_policy))
+      error_message = "HTTPS listener '${each.key}': ssl_policy '${each.value.ssl_policy}' enables TLS 1.0 or 1.1. Use ELBSecurityPolicy-TLS13-1-2-2021-06 or a newer policy."
     }
   }
 }
