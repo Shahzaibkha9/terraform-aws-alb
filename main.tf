@@ -7,6 +7,13 @@ resource "aws_lb" "this" {
   subnets            = var.subnet_ids
   security_groups    = var.security_group_ids
 
+  lifecycle {
+    precondition {
+      condition     = length(var.security_group_ids) > 0
+      error_message = "At least one security group ID is required for the Application Load Balancer."
+    }
+  }
+
   enable_deletion_protection = var.deletion_protection
   idle_timeout               = var.idle_timeout
   enable_http2               = var.enable_http2
@@ -27,7 +34,7 @@ resource "aws_lb" "this" {
 resource "aws_lb_target_group" "this" {
   for_each = var.create ? var.target_groups : {}
 
-  name        = "${var.name}-${each.key}"
+  name_prefix = substr("${var.name}-${each.key}", 0, 24)
   port        = each.value.port
   protocol    = upper(each.value.protocol)
   target_type = each.value.target_type
@@ -38,7 +45,7 @@ resource "aws_lb_target_group" "this" {
 
   health_check {
     enabled             = true
-    protocol            = upper(try(each.value.health_check.protocol, each.value.protocol))
+    protocol            = upper(coalesce(try(each.value.health_check.protocol, null), each.value.protocol))
     port                = try(each.value.health_check.port, "traffic-port")
     path                = try(each.value.health_check.path, "/")
     matcher             = try(each.value.health_check.matcher, "200-299")
@@ -95,13 +102,31 @@ resource "aws_lb_listener" "this" {
   }
 
   tags = var.tags
+
+  lifecycle {
+    precondition {
+      condition     = each.value.redirect != null || each.value.target_group_key != null
+      error_message = "Listener '${each.key}' must specify either 'redirect' or 'target_group_key'."
+    }
+    precondition {
+      condition     = upper(each.value.protocol) != "HTTPS" || each.value.certificate_arn != null
+      error_message = "HTTPS listener '${each.key}' requires 'certificate_arn' to be set."
+    }
+  }
 }
 
 resource "aws_wafv2_web_acl_association" "this" {
-  count = var.create && var.waf_acl_arn != null ? 1 : 0
+  count = var.create && var.associate_waf ? 1 : 0
 
   resource_arn = aws_lb.this[0].arn
   web_acl_arn  = var.waf_acl_arn
+
+  lifecycle {
+    precondition {
+      condition     = var.waf_acl_arn != null
+      error_message = "waf_acl_arn must be set when associate_waf is true."
+    }
+  }
 }
 
 resource "aws_lb_listener_rule" "this" {

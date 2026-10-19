@@ -8,6 +8,11 @@ variable "name" {
   description = "Name of the ALB. Also used as a prefix for target group names."
   type        = string
   nullable    = false
+
+  validation {
+    condition     = length(var.name) <= 32 && !startswith(var.name, "internal-")
+    error_message = "ALB name must be 32 characters or fewer and cannot start with 'internal-'."
+  }
 }
 
 variable "internal" {
@@ -87,7 +92,7 @@ variable "target_groups" {
     deregistration_delay = optional(number, 30)
     slow_start           = optional(number, 0)
     health_check = optional(object({
-      protocol            = optional(string, "HTTP")
+      protocol            = optional(string, null)
       port                = optional(string, "traffic-port")
       path                = optional(string, "/")
       matcher             = optional(string, "200-299")
@@ -168,9 +173,15 @@ variable "listener_rules" {
 }
 
 variable "waf_acl_arn" {
-  description = "ARN of a WAFv2 web ACL to associate with the ALB. Recommended for internet-facing ALBs."
+  description = "ARN of a WAFv2 web ACL to associate with the ALB. Set associate_waf = true to attach it."
   type        = string
   default     = null
+}
+
+variable "associate_waf" {
+  description = "Set to true to associate the waf_acl_arn WAF WebACL with the ALB. Using a bool avoids plan-time errors when waf_acl_arn is a computed value created in the same apply."
+  type        = bool
+  default     = false
 }
 
 variable "tags" {
