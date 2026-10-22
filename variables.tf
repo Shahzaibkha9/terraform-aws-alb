@@ -129,7 +129,6 @@ variable "security_group_egress_rules" {
   }
 }
 
-# tflint-ignore: terraform_unused_declarations -- false positive; var is used in concat() and precondition in main.tf
 variable "security_group_ids" {
   description = "List of additional security group IDs to assign to the ALB. At least one is required when create_security_group is false."
   type        = list(string)

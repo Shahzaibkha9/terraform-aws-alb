@@ -11,6 +11,12 @@ locals {
     "ELBSecurityPolicy-TLS-1-2-Ext-2018-06",
     "ELBSecurityPolicy-TLS-1-2-2017-01",
   ])
+
+  # Merge module-created SG (if any) with caller-supplied IDs.
+  security_groups = concat(
+    [for sg in aws_security_group.this : sg.id],
+    var.security_group_ids,
+  )
 }
 
 # ── Security group (optional) ─────────────────────────────────────────────────
@@ -68,11 +74,7 @@ resource "aws_lb" "this" {
   ip_address_type    = var.ip_address_type
   subnets            = var.subnet_ids
 
-  # Merge the module-created SG (if any) with caller-supplied IDs.
-  security_groups = concat(
-    [for sg in aws_security_group.this : sg.id],
-    var.security_group_ids,
-  )
+  security_groups = local.security_groups
 
   enable_deletion_protection = var.deletion_protection
   idle_timeout               = var.idle_timeout
