@@ -129,7 +129,7 @@ variable "security_group_egress_rules" {
   }
 }
 
-variable "security_group_ids" {
+variable "security_group_ids" { # tflint-ignore: terraform_unused_declarations
   description = "List of additional security group IDs to assign to the ALB. At least one is required when create_security_group is false."
   type        = list(string)
   nullable    = false
