@@ -12,10 +12,12 @@ locals {
     "ELBSecurityPolicy-TLS-1-2-2017-01",
   ])
 
+  # Resolved separately so tflint can detect var.security_group_ids usage.
+  caller_sg_ids = var.security_group_ids
   # Merge module-created SG (if any) with caller-supplied IDs.
   security_groups = concat(
     [for sg in aws_security_group.this : sg.id],
-    var.security_group_ids,
+    local.caller_sg_ids,
   )
 }
 
