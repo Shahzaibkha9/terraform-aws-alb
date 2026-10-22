@@ -11,7 +11,6 @@ locals {
     "ELBSecurityPolicy-TLS-1-2-Ext-2018-06",
     "ELBSecurityPolicy-TLS-1-2-2017-01",
   ])
-
 }
 
 # ── Security group (optional) ─────────────────────────────────────────────────
@@ -69,10 +68,10 @@ resource "aws_lb" "this" {
   ip_address_type    = var.ip_address_type
   subnets            = var.subnet_ids
 
-  # Caller-supplied IDs listed first; tflint detects var.security_group_ids here.
+  # Merge the module-created SG (if any) with caller-supplied IDs.
   security_groups = concat(
-    var.security_group_ids,
     [for sg in aws_security_group.this : sg.id],
+    var.security_group_ids,
   )
 
   enable_deletion_protection = var.deletion_protection
