@@ -284,7 +284,7 @@ resource "aws_lb_listener" "this" {
       error_message = "Listener '${each.key}' must specify either 'redirect' or 'target_group_key'."
     }
     precondition {
-      condition     = each.value.target_group_key == null || contains(keys(var.target_groups), coalesce(each.value.target_group_key, ""))
+      condition     = each.value.target_group_key == null ? true : contains(keys(var.target_groups), each.value.target_group_key)
       error_message = "Listener '${each.key}' references target_group_key '${coalesce(each.value.target_group_key, "<null>")}' which is not defined in var.target_groups."
     }
     precondition {
@@ -300,11 +300,11 @@ resource "aws_lb_listener" "this" {
       error_message = "HTTPS listener '${each.key}': ssl_policy '${each.value.ssl_policy}' is not in the approved TLS 1.2+ list. Use ELBSecurityPolicy-TLS13-1-2-2021-06 or another approved policy."
     }
     precondition {
-      condition     = each.value.mutual_authentication == null || upper(each.value.protocol) == "HTTPS"
+      condition     = each.value.mutual_authentication == null ? true : upper(each.value.protocol) == "HTTPS"
       error_message = "Listener '${each.key}': mutual_authentication is only valid on HTTPS listeners. Set protocol = \"HTTPS\" or remove the mutual_authentication block."
     }
     precondition {
-      condition     = each.value.mutual_authentication == null || each.value.mutual_authentication.mode != "verify" || each.value.mutual_authentication.trust_store_arn != null
+      condition     = each.value.mutual_authentication == null ? true : (each.value.mutual_authentication.mode != "verify" ? true : each.value.mutual_authentication.trust_store_arn != null)
       error_message = "Listener '${each.key}': mutual_authentication.trust_store_arn is required when mutual_authentication.mode = \"verify\"."
     }
   }

@@ -99,7 +99,7 @@ variable "security_group_ingress_rules" {
   default = null
 
   validation {
-    condition = var.security_group_ingress_rules == null || alltrue([
+    condition = var.security_group_ingress_rules == null ? true : alltrue([
       for k, v in var.security_group_ingress_rules :
       length(compact([v.cidr_ipv4, v.cidr_ipv6, v.prefix_list_id, v.referenced_security_group_id])) == 1
     ])
@@ -146,7 +146,7 @@ variable "security_group_egress_rules" {
   default = null
 
   validation {
-    condition = var.security_group_egress_rules == null || alltrue([
+    condition = var.security_group_egress_rules == null ? true : alltrue([
       for k, v in var.security_group_egress_rules :
       length(compact([v.cidr_ipv4, v.cidr_ipv6, v.prefix_list_id, v.referenced_security_group_id])) == 1
     ])
@@ -315,17 +315,17 @@ variable "target_groups" {
   }
 
   validation {
-    condition     = alltrue([for k, v in var.target_groups : v.stickiness == null || contains(["lb_cookie", "app_cookie", "source_ip"], v.stickiness.type)])
+    condition     = alltrue([for k, v in var.target_groups : v.stickiness == null ? true : contains(["lb_cookie", "app_cookie", "source_ip"], v.stickiness.type)])
     error_message = "target_groups stickiness.type must be lb_cookie, app_cookie, or source_ip."
   }
 
   validation {
-    condition     = alltrue([for k, v in var.target_groups : v.stickiness == null || !(v.stickiness.type == "lb_cookie" && v.stickiness.cookie_name != null)])
+    condition     = alltrue([for k, v in var.target_groups : v.stickiness == null ? true : !(v.stickiness.type == "lb_cookie" && v.stickiness.cookie_name != null)])
     error_message = "target_groups stickiness.cookie_name is only valid when stickiness.type = app_cookie, not lb_cookie."
   }
 
   validation {
-    condition     = alltrue([for k, v in var.target_groups : v.stickiness == null || v.stickiness.cookie_duration == null || (v.stickiness.cookie_duration >= 1 && v.stickiness.cookie_duration <= 604800)])
+    condition     = alltrue([for k, v in var.target_groups : v.stickiness == null ? true : (v.stickiness.cookie_duration == null ? true : (v.stickiness.cookie_duration >= 1 && v.stickiness.cookie_duration <= 604800))])
     error_message = "target_groups stickiness.cookie_duration must be between 1 and 604800 seconds (7 days)."
   }
 }
@@ -395,21 +395,21 @@ variable "listeners" {
   }
 
   validation {
-    condition     = alltrue([for k, v in var.listeners : v.redirect == null || contains(["HTTP_301", "HTTP_302"], v.redirect.status_code)])
+    condition     = alltrue([for k, v in var.listeners : v.redirect == null ? true : contains(["HTTP_301", "HTTP_302"], v.redirect.status_code)])
     error_message = "listeners redirect.status_code must be HTTP_301 or HTTP_302."
   }
 
   validation {
-    condition     = alltrue([for k, v in var.listeners : v.mutual_authentication == null || contains(["off", "passthrough", "verify"], v.mutual_authentication.mode)])
+    condition     = alltrue([for k, v in var.listeners : v.mutual_authentication == null ? true : contains(["off", "passthrough", "verify"], v.mutual_authentication.mode)])
     error_message = "listeners mutual_authentication.mode must be off, passthrough, or verify."
   }
 
   validation {
     condition = alltrue([
       for k, v in var.listeners :
-      v.mutual_authentication == null ||
-      v.mutual_authentication.advertise_trust_store_ca_names == null ||
-      contains(["off", "on"], v.mutual_authentication.advertise_trust_store_ca_names)
+      v.mutual_authentication == null ? true : (
+        v.mutual_authentication.advertise_trust_store_ca_names == null ? true : contains(["off", "on"], v.mutual_authentication.advertise_trust_store_ca_names)
+      )
     ])
     error_message = "listeners mutual_authentication.advertise_trust_store_ca_names must be off or on when set."
   }
@@ -443,7 +443,7 @@ variable "listener_rules" {
   default = {}
 
   validation {
-    condition     = alltrue([for k, v in var.listener_rules : v.priority == null || (v.priority >= 1 && v.priority <= 50000)])
+    condition     = alltrue([for k, v in var.listener_rules : v.priority == null ? true : (v.priority >= 1 && v.priority <= 50000)])
     error_message = "listener_rules priority must be between 1 and 50000 when set."
   }
 }
