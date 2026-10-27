@@ -10,6 +10,9 @@ module "alb" {
   subnet_ids            = var.subnet_ids
   create_security_group = true
 
+  # Access logs are enabled by default and require an S3 bucket. The minimal
+  # example turns them off; see examples/complete for a bucket-backed setup.
+  access_logs_enabled = false
   deletion_protection = false
 
   target_groups = {
@@ -24,14 +27,4 @@ module "alb" {
       redirect = { port = "443", protocol = "HTTPS", status_code = "HTTP_301" }
     }
   }
-}
-
-output "alb_dns_name" {
-  description = "DNS name of the ALB."
-  value       = module.alb.dns_name
-}
-
-output "security_group_id" {
-  description = "ID of the ALB security group (for target group ingress rules)."
-  value       = module.alb.security_group_id
 }

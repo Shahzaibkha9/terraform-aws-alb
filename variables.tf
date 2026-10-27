@@ -61,9 +61,12 @@ variable "security_group_description" {
 variable "security_group_ingress_rules" {
   description = <<-EOT
     Ingress rules for the created security group. Only used when create_security_group = true.
-    Defaults to allowing HTTP (80) and HTTPS (443) from 0.0.0.0/0.
+    When null, the module picks a safe default based on internal:
+      - internal = true: HTTPS (443) from the VPC CIDR only (looked up via data source).
+      - internal = false: HTTP (80) and HTTPS (443) from 0.0.0.0/0 so browsers can reach the ALB.
+    Exactly one source must be set per rule: cidr_ipv4, cidr_ipv6, prefix_list_id, or referenced_security_group_id.
 
-    Example (restrict to known CIDR):
+    Example (restrict to a known CIDR):
       security_group_ingress_rules = {
         https_corp = {
           ip_protocol = "tcp"
@@ -72,60 +75,82 @@ variable "security_group_ingress_rules" {
           cidr_ipv4   = "10.0.0.0/8"
         }
       }
+
+    Example (allow only a specific client security group):
+      security_group_ingress_rules = {
+        https_from_app = {
+          ip_protocol                  = "tcp"
+          from_port                    = 443
+          to_port                      = 443
+          referenced_security_group_id = aws_security_group.app.id
+        }
+      }
   EOT
   type = map(object({
-    ip_protocol = string
-    from_port   = optional(number, null)
-    to_port     = optional(number, null)
-    cidr_ipv4   = optional(string, null)
-    cidr_ipv6   = optional(string, null)
-    description = optional(string, "")
+    ip_protocol                  = string
+    from_port                    = optional(number, null)
+    to_port                      = optional(number, null)
+    cidr_ipv4                    = optional(string, null)
+    cidr_ipv6                    = optional(string, null)
+    prefix_list_id               = optional(string, null)
+    referenced_security_group_id = optional(string, null)
+    description                  = optional(string, "")
   }))
-  default = {
-    http = {
-      ip_protocol = "tcp"
-      from_port   = 80
-      to_port     = 80
-      cidr_ipv4   = "0.0.0.0/0"
-      description = "Allow HTTP from anywhere"
-    }
-    https = {
-      ip_protocol = "tcp"
-      from_port   = 443
-      to_port     = 443
-      cidr_ipv4   = "0.0.0.0/0"
-      description = "Allow HTTPS from anywhere"
-    }
+  default = null
+
+  validation {
+    condition = var.security_group_ingress_rules == null || alltrue([
+      for k, v in var.security_group_ingress_rules :
+      length(compact([v.cidr_ipv4, v.cidr_ipv6, v.prefix_list_id, v.referenced_security_group_id])) == 1
+    ])
+    error_message = "Each security_group_ingress_rules entry must set exactly one of: cidr_ipv4, cidr_ipv6, prefix_list_id, referenced_security_group_id."
   }
 }
 
 variable "security_group_egress_rules" {
   description = <<-EOT
     Egress rules for the created security group. Only used when create_security_group = true.
-    Defaults to allowing all outbound traffic. Restrict to VPC CIDR in production.
+    When null, the module defaults to allowing all protocols to the VPC CIDR
+    (looked up via data source). ALBs only forward to in-VPC targets, so this
+    is a safer default than 0.0.0.0/0.
+    Exactly one destination must be set per rule: cidr_ipv4, cidr_ipv6, prefix_list_id, or referenced_security_group_id.
 
-    Example (restrict egress to VPC):
+    Example (restrict egress to a subset of the VPC):
       security_group_egress_rules = {
         vpc_only = {
           ip_protocol = "-1"
           cidr_ipv4   = "10.0.0.0/16"
         }
       }
+
+    Example (allow egress only to a specific target security group):
+      security_group_egress_rules = {
+        to_app = {
+          ip_protocol                  = "tcp"
+          from_port                    = 8080
+          to_port                      = 8080
+          referenced_security_group_id = aws_security_group.app.id
+        }
+      }
   EOT
   type = map(object({
-    ip_protocol = string
-    from_port   = optional(number, null)
-    to_port     = optional(number, null)
-    cidr_ipv4   = optional(string, null)
-    cidr_ipv6   = optional(string, null)
-    description = optional(string, "")
+    ip_protocol                  = string
+    from_port                    = optional(number, null)
+    to_port                      = optional(number, null)
+    cidr_ipv4                    = optional(string, null)
+    cidr_ipv6                    = optional(string, null)
+    prefix_list_id               = optional(string, null)
+    referenced_security_group_id = optional(string, null)
+    description                  = optional(string, "")
   }))
-  default = {
-    all = {
-      ip_protocol = "-1"
-      cidr_ipv4   = "0.0.0.0/0"
-      description = "Allow all outbound traffic"
-    }
+  default = null
+
+  validation {
+    condition = var.security_group_egress_rules == null || alltrue([
+      for k, v in var.security_group_egress_rules :
+      length(compact([v.cidr_ipv4, v.cidr_ipv6, v.prefix_list_id, v.referenced_security_group_id])) == 1
+    ])
+    error_message = "Each security_group_egress_rules entry must set exactly one of: cidr_ipv4, cidr_ipv6, prefix_list_id, referenced_security_group_id."
   }
 }
 
@@ -145,9 +170,14 @@ variable "deletion_protection" {
 }
 
 variable "idle_timeout" {
-  description = "Connection idle timeout in seconds."
+  description = "Connection idle timeout in seconds. Must be between 1 and 4000 (AWS cap)."
   type        = number
   default     = 60
+
+  validation {
+    condition     = var.idle_timeout >= 1 && var.idle_timeout <= 4000
+    error_message = "idle_timeout must be between 1 and 4000 seconds."
+  }
 }
 
 variable "enable_http2" {
@@ -194,9 +224,14 @@ variable "access_logs_bucket" {
 }
 
 variable "access_logs_prefix" {
-  description = "S3 key prefix for access logs. Defaults to the ALB name when null."
+  description = "S3 key prefix for access logs. Defaults to the ALB name when null. Must not start or end with '/'."
   type        = string
   default     = null
+
+  validation {
+    condition     = var.access_logs_prefix == null || (!startswith(var.access_logs_prefix, "/") && !endswith(var.access_logs_prefix, "/"))
+    error_message = "access_logs_prefix must not start or end with '/' - it is used as the S3 key prefix verbatim."
+  }
 }
 
 variable "connection_logs_bucket" {
@@ -206,9 +241,14 @@ variable "connection_logs_bucket" {
 }
 
 variable "connection_logs_prefix" {
-  description = "S3 key prefix for connection logs. Defaults to the ALB name when null."
+  description = "S3 key prefix for connection logs. Defaults to the ALB name when null. Must not start or end with '/'."
   type        = string
   default     = null
+
+  validation {
+    condition     = var.connection_logs_prefix == null || (!startswith(var.connection_logs_prefix, "/") && !endswith(var.connection_logs_prefix, "/"))
+    error_message = "connection_logs_prefix must not start or end with '/' - it is used as the S3 key prefix verbatim."
+  }
 }
 
 # ── Target groups ─────────────────────────────────────────────────────────────
@@ -253,6 +293,41 @@ variable "target_groups" {
     }), null)
   }))
   default = {}
+
+  validation {
+    condition     = alltrue([for k in keys(var.target_groups) : can(regex("^[a-z0-9][-a-z0-9]*$", substr(k, 0, 6)))])
+    error_message = "target_groups keys: the first 6 characters are used as the AWS target group name prefix and must be lowercase alphanumeric, optionally with hyphens, starting with an alphanumeric character."
+  }
+
+  validation {
+    condition     = alltrue([for k, v in var.target_groups : v.port >= 1 && v.port <= 65535])
+    error_message = "All target_groups ports must be between 1 and 65535."
+  }
+
+  validation {
+    condition     = alltrue([for k, v in var.target_groups : contains(["HTTP", "HTTPS", "HTTP2", "GRPC"], upper(v.protocol))])
+    error_message = "target_groups protocol must be HTTP, HTTPS, HTTP2, or GRPC."
+  }
+
+  validation {
+    condition     = alltrue([for k, v in var.target_groups : contains(["instance", "ip", "lambda", "alb"], v.target_type)])
+    error_message = "target_groups target_type must be instance, ip, lambda, or alb."
+  }
+
+  validation {
+    condition     = alltrue([for k, v in var.target_groups : v.stickiness == null || contains(["lb_cookie", "app_cookie", "source_ip"], v.stickiness.type)])
+    error_message = "target_groups stickiness.type must be lb_cookie, app_cookie, or source_ip."
+  }
+
+  validation {
+    condition     = alltrue([for k, v in var.target_groups : v.stickiness == null || !(v.stickiness.type == "lb_cookie" && v.stickiness.cookie_name != null)])
+    error_message = "target_groups stickiness.cookie_name is only valid when stickiness.type = app_cookie, not lb_cookie."
+  }
+
+  validation {
+    condition     = alltrue([for k, v in var.target_groups : v.stickiness == null || v.stickiness.cookie_duration == null || (v.stickiness.cookie_duration >= 1 && v.stickiness.cookie_duration <= 604800)])
+    error_message = "target_groups stickiness.cookie_duration must be between 1 and 604800 seconds (7 days)."
+  }
 }
 
 # ── Listeners ─────────────────────────────────────────────────────────────────
@@ -261,7 +336,21 @@ variable "listeners" {
   description = <<-EOT
     Map of listeners to create. Key is a logical name (e.g. "http", "https").
 
-    Example:
+    Example (HTTPS with mutual TLS / client certificate authentication):
+      listeners = {
+        https = {
+          port             = 443
+          protocol         = "HTTPS"
+          certificate_arn  = module.acm.arn
+          target_group_key = "app"
+          mutual_authentication = {
+            mode            = "verify"
+            trust_store_arn = aws_lb_trust_store.corp.arn
+          }
+        }
+      }
+
+    Example (HTTP to HTTPS redirect + HTTPS forwarding):
       listeners = {
         http = {
           port     = 80
@@ -286,8 +375,44 @@ variable "listeners" {
       protocol    = optional(string, "HTTPS")
       status_code = optional(string, "HTTP_301")
     }), null)
+    mutual_authentication = optional(object({
+      mode                             = string
+      trust_store_arn                  = optional(string, null)
+      advertise_trust_store_ca_names   = optional(string, null)
+      ignore_client_certificate_expiry = optional(bool, false)
+    }), null)
   }))
   default = {}
+
+  validation {
+    condition     = alltrue([for k, v in var.listeners : v.port >= 1 && v.port <= 65535])
+    error_message = "All listener ports must be between 1 and 65535."
+  }
+
+  validation {
+    condition     = alltrue([for k, v in var.listeners : contains(["HTTP", "HTTPS"], upper(v.protocol))])
+    error_message = "listeners protocol must be HTTP or HTTPS."
+  }
+
+  validation {
+    condition     = alltrue([for k, v in var.listeners : v.redirect == null || contains(["HTTP_301", "HTTP_302"], v.redirect.status_code)])
+    error_message = "listeners redirect.status_code must be HTTP_301 or HTTP_302."
+  }
+
+  validation {
+    condition     = alltrue([for k, v in var.listeners : v.mutual_authentication == null || contains(["off", "passthrough", "verify"], v.mutual_authentication.mode)])
+    error_message = "listeners mutual_authentication.mode must be off, passthrough, or verify."
+  }
+
+  validation {
+    condition = alltrue([
+      for k, v in var.listeners :
+      v.mutual_authentication == null ||
+      v.mutual_authentication.advertise_trust_store_ca_names == null ||
+      contains(["off", "on"], v.mutual_authentication.advertise_trust_store_ca_names)
+    ])
+    error_message = "listeners mutual_authentication.advertise_trust_store_ca_names must be off or on when set."
+  }
 }
 
 variable "listener_rules" {
@@ -316,6 +441,11 @@ variable "listener_rules" {
     }), null)
   }))
   default = {}
+
+  validation {
+    condition     = alltrue([for k, v in var.listener_rules : v.priority == null || (v.priority >= 1 && v.priority <= 50000)])
+    error_message = "listener_rules priority must be between 1 and 50000 when set."
+  }
 }
 
 # ── WAF ───────────────────────────────────────────────────────────────────────
@@ -335,7 +465,7 @@ variable "associate_waf" {
 # ── HTTP policy ───────────────────────────────────────────────────────────────
 
 variable "allow_plaintext_http" {
-  description = "Set to true to allow HTTP listeners to forward directly to targets without redirecting. Use only for internal ALBs serving service-to-service traffic."
+  description = "Allow HTTP listeners to forward directly to targets without redirecting. Only honoured when 'internal = true' - the listener precondition rejects plaintext HTTP on internet-facing ALBs."
   type        = bool
   default     = false
 }
