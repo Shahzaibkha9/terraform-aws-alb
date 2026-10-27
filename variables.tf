@@ -229,7 +229,7 @@ variable "access_logs_prefix" {
   default     = null
 
   validation {
-    condition     = var.access_logs_prefix == null || (!startswith(var.access_logs_prefix, "/") && !endswith(var.access_logs_prefix, "/"))
+    condition     = var.access_logs_prefix == null ? true : (!startswith(var.access_logs_prefix, "/") && !endswith(var.access_logs_prefix, "/"))
     error_message = "access_logs_prefix must not start or end with '/' - it is used as the S3 key prefix verbatim."
   }
 }
@@ -246,7 +246,7 @@ variable "connection_logs_prefix" {
   default     = null
 
   validation {
-    condition     = var.connection_logs_prefix == null || (!startswith(var.connection_logs_prefix, "/") && !endswith(var.connection_logs_prefix, "/"))
+    condition     = var.connection_logs_prefix == null ? true : (!startswith(var.connection_logs_prefix, "/") && !endswith(var.connection_logs_prefix, "/"))
     error_message = "connection_logs_prefix must not start or end with '/' - it is used as the S3 key prefix verbatim."
   }
 }
